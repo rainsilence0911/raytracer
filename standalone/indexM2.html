@@ -1,0 +1,466 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>Ray Trace & Fog</title>
+<script type="text/javascript" src="js/webgl-utils.js"></script>
+<script id="shader-fs" type="x-shader/x-fragment">
+	precision highp float;
+
+	const vec3 lightDir = vec3(0.577350269, 0.577350269, 0.577350269);
+	const vec3 ambientColor = vec3(0.2, 0.2, 0.2);
+	const vec3 diffuseColor = vec3(0.8, 0.4, 0.4);
+	const vec3 specularColor = vec3(0.8, 0.8, 0.8);
+
+	const vec4 fogColor = vec4(1.0, 1.0, 1.0, 1.0);
+	
+	const vec3 COLOR_BLACK = vec3(0.0, 0.0, 0.0);
+	const vec3 COLOR_WHITE = vec3(1.0, 1.0, 1.0);
+	
+	// fog density(1.0, 2.5)
+	uniform float uFogDensity;
+	uniform bool uUseFog;
+	uniform bool uReflectFloor;
+	varying vec3 vPosition;
+	uniform vec3 cameraPos;
+	uniform vec3 sphere1Center;
+	
+
+	bool intersectSphere(vec3 center, vec3 lStart, vec3 lDir, out float dist) {
+		
+		vec3 c = lStart - center;
+
+		float b = dot(c, lDir);
+
+		/**
+		 * 当球心和CameraPos的向量和Ray向量(方向相反)成钝角的时候，才显示到屏幕上
+		 */
+		if (b > 0.0) {
+			dist = 10000.0;
+			return false;
+		}
+		/* radius:0.1 */
+		float d = b * b - dot(c, c) + 0.01;
+
+		if (d < 0.0) {
+			dist = 10000.0;
+			return false;
+		}
+		// 求最短距离，所以sqrt前的符号为-
+		dist = -b - sqrt(d);
+
+		if (dist < 0.0) {
+			dist = 10000.0;
+			return false;
+		}
+
+		return true;
+	}
+
+	bool intersectPlane(vec3 lStart, vec3 lDir, out float dist) {
+		
+		vec3 normal = normalize(vec3(0.0, 1.0, 0.0));
+
+		float a = dot(lDir, normal);
+
+		if (a > 0.0) {
+			dist = 10000.0;
+			return false;
+		}
+
+		float b = dot(normal, lStart - vec3(0.0, 0.0, 0.0));
+
+		dist = -b / a;
+
+		return true;
+	}
+
+	bool intersectWorld(vec3 lStart, vec3 lDir, out vec3 pos, out vec3 normal, out vec3 color, out float distance, out bool isFloor) {
+		
+		//float distance;
+
+		if (intersectSphere(sphere1Center, lStart, lDir, distance)) {
+			pos = lStart + distance * lDir;
+			normal = normalize(pos - sphere1Center);
+
+			// *************
+			// diffuse light
+			// *************
+			float diffuseWighting = max(dot(normalize(lightDir), normal), 0.0);
+
+			// *************
+			// specular light
+			// *************
+			vec3 eyeDirection = normalize(-vPosition.xyz);
+			vec3 reflectionDirection = reflect(-lightDir, normal);
+
+			// factor: 32
+			float specularLightWeighting = pow(max(dot(reflectionDirection, eyeDirection), 0.0), 32.0);
+			color = ambientColor + diffuseWighting * diffuseColor + specularLightWeighting * specularColor;
+			isFloor = false;
+			
+			return true;
+		} else if (intersectPlane(lStart, lDir, distance)) {
+
+			pos = lStart + distance * lDir;
+
+			float scale = 6.0;
+			color = mod(abs(floor(pos.x * scale) + floor(pos.z * scale)), 2.0) < 1.0 ? COLOR_BLACK : COLOR_WHITE;
+			// 地板反射,改变法线向量
+			normal = vec3(0.0, 1.0, 0.0);
+			
+			isFloor = true;
+			
+			return true;
+		} else {
+			// 雾模式下，天空会出现溢出，所以在这里将pos.z设置为-1，这样既不会太白，也不会太黑
+			pos = vec3(0.0, 0.0, -4.0);
+			return false;
+		}
+	}
+
+	void main(void) {
+
+		vec3 cameraDir = normalize(vPosition - cameraPos);
+		float pointDistance;
+		float distance;
+		vec3 color,normal,pos1, pos2, pos3;
+		vec3 colorM, colorR;
+		bool isFloor;
+		if (intersectWorld(cameraPos, cameraDir, pos1, normal, color, pointDistance, isFloor)) {
+			
+			if (!isFloor || uReflectFloor) {
+			
+				vec3 cameraDir2 = reflect(cameraDir, normal);
+				
+				if (intersectWorld(pos1, cameraDir2, pos2, normal, colorM, distance, isFloor)) {
+				
+					// only reflect light that distance <= 1.5.
+					if (distance <= 1.5) {
+					
+						// 如果是从白色地板反射到球上的，那么使用加法不足以计算颜色。因为超过1.0的还是白色。所以只能用乘法。
+						// f(x) = x / (1 + x)是增函数，x越大，y越大.y越大，则颜色越浅
+						color *= ((colorM + vec3(0.7)) / 1.7);
+
+						vec3 cameraDir3 = reflect(cameraDir2, normal);
+						
+						// 计算地板反射到球上，并由球反射到地板的光线
+						if (intersectWorld(pos2, cameraDir3, pos3, normal, colorR, distance, isFloor)) {
+							color += (colorR) * 0.3;
+						}
+					}
+					
+				}
+			
+			}
+		} else {
+			color = COLOR_BLACK;
+		}
+
+		if (uUseFog) {
+			// fogFactor = e^-(z * density)
+			// we must change from pos1.z is (-1, 1) to (-1, 0)
+			// (result - (-1)) / (0 - (-1)) = (pos.z - (-1)) / 1 - (-1) => result = (pos.z - 1) / 2
+			float fogFactor = clamp(exp(((pos1.z - 1.0) / 2.0) * uFogDensity), 0.0, 1.0);//clamp((2.0 - pointDistance) / 2.0, 0.0, 1.0);
+			gl_FragColor = mix(fogColor, vec4(color, 1.0), fogFactor);
+		} else {
+			gl_FragColor = vec4(color, 1.0);
+		}
+	}
+</script>
+<script id="shader-vs" type="x-shader/x-vertex">
+	
+	attribute vec2 aVertexPosition;
+
+	attribute vec3 aPlotPosition;
+
+	varying vec3 vPosition;
+
+	void main(void) {
+		gl_Position = vec4(aVertexPosition, 1.0, 1.0);
+		vPosition = aPlotPosition;
+	}
+
+</script>
+
+<script type="text/javascript">
+(function() {
+	
+	Vector = function(x, y, z) {
+		this.x = x;
+		this.y = y;
+		this.z = z;
+	}
+	
+	Vector.prototype = {
+		add: function(v) {
+			return Vector.create(this.x + v.x, this.y + v.y, this.z + v.z);
+		},
+		substract: function(v) {
+			return Vector.create(this.x - v.x, this.y - v.y, this.z - v.z);
+		},
+		multiply: function(n) {
+			return Vector.create(this.x * n, this.y * n, this.z * n);
+		},
+		divide: function(n) {
+			return Vector.create(this.x / n, this.y / n, this.z / n);
+		},
+		dot: function(v) {
+			return this.x * v.x + this.y * v.y + this.z * v.z;
+		},
+		cross: function(v) {
+			return Vector.create(
+				this.y * v.z - this.z * v.y,
+				this.z * v.x - this.x * v.z,
+				this.x * v.y - this.y * v.x
+			);
+		},
+		length: function() {
+			return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z);
+		},
+		normalize: function() {
+			var len = this.length();
+			return Vector.create(
+				this.x / len,
+				this.y / len,
+				this.z / len
+			);
+		},
+		toString: function() {
+			return "x:" + this.x + "\ny:" + this.y + "\nz:" + this.z;
+		}
+	};
+	
+	Vector.create = function(x, y, z) {
+		return new Vector(x, y, z);
+	};
+	
+})();
+</script>
+<script type="text/javascript">
+
+function initGL(canvas) {
+    try {
+        gl = WebGLUtils.setupWebGL(canvas);;
+        gl.viewport(0, 0, canvas.width, canvas.height);
+    } catch (e) {
+    }
+    if (!gl) {
+        alert("Could not initialise WebGL, sorry :-(");
+    }
+}
+
+function getShader(gl, id) {
+    var shaderScript = document.getElementById(id);
+    if (!shaderScript)
+        return null;
+
+    var shader;
+    if (shaderScript.type == "x-shader/x-fragment") {
+        shader = gl.createShader(gl.FRAGMENT_SHADER);
+    } else if (shaderScript.type == "x-shader/x-vertex") {
+        shader = gl.createShader(gl.VERTEX_SHADER);
+    } else {
+        return null;
+    }
+
+    gl.shaderSource(shader, shaderScript.textContent);
+    gl.compileShader(shader);
+
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        alert(gl.getShaderInfoLog(shader));
+        return null;
+    }
+
+    return shader;
+}
+
+function initShaders() {
+    var fragmentShader = getShader(gl, "shader-fs");
+    var vertexShader = getShader(gl, "shader-vs");
+
+    shaderProgram = gl.createProgram();
+    gl.attachShader(shaderProgram, vertexShader);
+    gl.attachShader(shaderProgram, fragmentShader);
+    gl.linkProgram(shaderProgram);
+
+    if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+        alert("Could not initialise shaders");
+    }
+
+    gl.useProgram(shaderProgram);
+
+    aVertexPosition = gl.getAttribLocation(shaderProgram, "aVertexPosition");
+    gl.enableVertexAttribArray(aVertexPosition);
+
+    aPlotPosition = gl.getAttribLocation(shaderProgram, "aPlotPosition");
+    gl.enableVertexAttribArray(aPlotPosition);
+    
+    cameraPos = gl.getUniformLocation(shaderProgram, "cameraPos");
+    sphere1Center = gl.getUniformLocation(shaderProgram, "sphere1Center");
+	
+	isReflectFloor = gl.getUniformLocation(shaderProgram, "uReflectFloor");
+	isUseFog = gl.getUniformLocation(shaderProgram, "uUseFog");
+	fogDensity = gl.getUniformLocation(shaderProgram, "uFogDensity");
+}
+
+
+function initBuffers() {
+    vertexPositionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vertexPositionBuffer);
+    var vertices = [-1.0, 1.0, 1.0, 1.0, -1.0, -1.0, 1.0, -1.0];
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+    gl.vertexAttribPointer(aVertexPosition, 2, gl.FLOAT, false, 0, 0);
+    
+    var plotPositionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, plotPositionBuffer);
+    gl.vertexAttribPointer(aPlotPosition, 3, gl.FLOAT, false, 0, 0);
+    
+}
+
+/**
+ * 初始化canvas
+ */
+function webGLStart() {
+	viewPointTag = document.getElementById("viewPointRange");
+	reflectTag = document.getElementById("reflectFloor");
+	fogTag = document.getElementById("useFog");
+	fogDensityTag = document.getElementById("fogDensityRange");
+    canvas = document.getElementById("canvas");
+    initGL(canvas);
+    initShaders()
+
+    gl.clearColor(0.0, 0.0, 0.0, 1.0);
+
+    gl.clearDepth(1.0);
+
+    initBuffers();
+    
+    initKeyEvent();
+}
+
+function preventDefault(e) {
+	if (e.preventDefault) {
+		e.preventDefault();
+	} else {
+		e.returnValue = false;
+	};
+}
+
+function initKeyEvent() {
+	
+	document.addEventListener('keydown', function(e) {
+		var event = e || window.event;
+		
+		switch(event.keyCode) {
+		case 37:
+			x1-=0.01;
+			preventDefault(e);
+			break;
+		case 38:
+			z1-=0.01;
+			preventDefault(e);
+			break;
+		case 39:
+			x1+=0.01;
+			preventDefault(e);
+			break;
+		case 40:
+			z1+=0.01;
+			preventDefault(e);
+			break;
+		}
+	});
+}
+
+function pushVector(vector, arr) {
+	arr.push(vector.x);
+	arr.push(vector.y);
+	arr.push(vector.z);
+}
+var gl;
+var reflectTag, isReflectFloor;
+var fogTag, isUseFog, fogDensityTag, fogDensity, viewPointTag;
+var shaderProgram;
+var aVertexPosition;
+var aPlotPosition;
+var cameraPos;
+var sphere1Center;
+var vertexPositionBuffer;
+
+var cameraFrom = Vector.create(0, 0.4, 1.1);
+var cameraTo = Vector.create(0, 0, 0);
+var up = Vector.create(0, 1, 0);
+
+var x1 = 0;
+var y1 = 0.1;
+var z1 = 0;
+
+
+function drawScene() {
+	
+	cameraFrom.y = Number(viewPointTag.value);
+	
+    // radio = height / width
+    var radio = canvas.height / canvas.width;
+    
+	var cameraPersp = 2;
+	var cameraDir = cameraTo.substract(cameraFrom).normalize();
+	
+	// camera line
+	var cameraCenter = cameraFrom.add(cameraDir.multiply(cameraPersp));
+	
+	var cameraLeft = cameraDir.cross(up).normalize();
+	var cameraTop = cameraLeft.cross(cameraDir).normalize().multiply(radio);
+	
+	var cameraLeftTop = cameraCenter.add(cameraLeft).add(cameraTop).normalize();
+	var cameraRightTop = cameraCenter.substract(cameraLeft).add(cameraTop).normalize();
+	var cameraLeftBottom = cameraCenter.add(cameraLeft).substract(cameraTop).normalize();
+	var cameraRightBottom = cameraCenter.substract(cameraLeft).substract(cameraTop).normalize();
+	
+	var corner = [];
+	
+	// Z字按照X轴翻转后的顺序,因为渲染时候的Y和浏览器的Y刚好相反
+	pushVector(cameraRightTop, corner);
+	pushVector(cameraLeftTop, corner);
+	pushVector(cameraRightBottom, corner);
+	pushVector(cameraLeftBottom, corner);
+	
+	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(corner), gl.STATIC_DRAW);
+	gl.uniform3f(cameraPos, cameraFrom.x, cameraFrom.y, cameraFrom.z);
+	gl.uniform3f(sphere1Center, x1, y1, z1);
+	gl.uniform1i(isReflectFloor, reflectTag.checked);
+	gl.uniform1i(isUseFog, fogTag.checked);
+	gl.uniform1f(fogDensity, fogDensityTag.value);
+	
+	gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+	requestAnimFrame(drawScene);
+}
+
+</script>
+
+<style>
+	.settingLabel {
+		width: 120px;
+	}
+
+</style>
+
+</head>
+<body onload="webGLStart();drawScene();">
+	<canvas id="canvas" width="1024" height="768"></canvas>
+	<div>Click Left Up Right Bottom</div>
+	<div>
+		<input type="checkbox" id="reflectFloor" checked/><label for="reflectFloor">Reflect floor</label>
+	</div>
+	<div>
+		<input type="checkbox" id="useFog"/><label for="useFog">Use Fog</label>&nbsp;
+	</div>
+	<div>
+		<table><tr><td class="settingLabel">Fog Density: </td><td><input type="range" min="1.0" max="2.5" step="0.1" id="fogDensityRange" value="2.0"/></td></tr></table>
+	</div>
+	<div>
+		<table><tr><td class="settingLabel">View Point: </td><td><input type="range" min="0.3" max="0.6" step="0.01" id="viewPointRange" value="0.4"/></td></tr></table>
+	</div>
+</body>
+</html>
