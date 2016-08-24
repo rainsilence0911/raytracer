@@ -22,4 +22,20 @@
 standalone版本是此项目的原型，功能已经全部实现。可在所有支持webgl的浏览器上双击打开运行
 
 ## What is reactES6 version
-react version 先开个坑，还没时间去做。预计用webpack的raw-loader去模块化vertex shader和fragment shader文件
+用react进行了重构，用webpack的raw-loader去模块化vertex shader和fragment shader文件。将html的控制逻辑和canvas的绘画逻辑解藕
+
+代码总共分为两层：bootstrap层（util,gl,glsl,manager,event文件夹下，包与包之间互相独立，不存在互相依赖），应用层（component,observer文件夹下，两个package之间依然互相独立，不存在互相依赖，但是会依赖bootstrap的代码）
+
+
+## How to install
+Standalone版本直接双击test.html就可以运行
+
+es6版本用了webpack+hot deploy plugin作为开发环境
+
+1）进入webpack.config.js的目录
+
+2) npm install
+
+3) npm run hot-dev-server
+
+4) open browser and input http://localhost:8080
