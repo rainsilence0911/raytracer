@@ -117,7 +117,7 @@ void main(void) {
     vec3 cameraDir = normalize(vPosition - cameraPos);
     float pointDistance;
     float distance;
-    vec3 color,normal,pos1, pos2, pos3;
+    vec3 color, normal, pos1, pos2, pos3;
     vec3 colorM, colorR;
     bool isFloor;
     if (intersectWorld(cameraPos, cameraDir, pos1, normal, color, pointDistance, isFloor)) {
