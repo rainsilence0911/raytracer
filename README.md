@@ -47,62 +47,7 @@ es6版本用了webpack+hot deploy plugin作为开发环境
 4) open browser and input http://localhost:8080
 
 ## 原理
-1. 球和线的交点
 
-要渲染图形，最简单的莫过于球了。
+请参考我以前的blog
 
-球在数学中的定义:
-
-|| Surface - Center || = radius
- 
-而我们看到的球其实是以我们眼睛为起点产生的射线组成的视椎体和球表面的交点集合。
-
-直线方程在解析几何中如下定义：
-
-F(x) = origin + distance * direction (1)
-
-其中origin是直线经过的点，distance是距离，是个数字，direction是单位向量，仅仅表示距离
-
-上面的直线方程可以理解为经过origin，方向为direction的点集。
- 
-球方程两边平方，得
-
-pow(surface - center, 2) = radius * radius (2)
-
-经(1)(2)式联立：
-
-pow(origin -center + distance * direction, 2) = radius * radius
-
-设v = origin-center
-
-pow(v, 2) + 2 * distance * direction * v + pow(distance * direction, 2) = pow(radius, 2)
- 
-direction是单位向量，平方=1
-
-上式等于
-
-pow(v, 2) + 2 * distance * direction * v + pow(direction, 2) = pow(radius, 2)
- 
-经二次曲线万能求根公式
-
-a = 1
-
-b = 2 * distance * direction * v
-
-c = pow(v, 2) - pow(radius, 2)
-
-d = pow(b, 2) - 4 * a * c
- 
-这里有几个限制。
-
-1. dot(direction, v)必须小于0。因为方向是不一样的。如果>=0代表摄像机反向的镜像。
-
-2. d >=0
-
-3. 由于求的是距离，所以distance必须要>0，否则就是direction有问题。
-
-4. 由于求的是最短距离，所以只需要求一个根
-
-最后的求距离的式子整理如下：
-
-    distance = - direction * v - sqrt(pow(direction * v, 2) - pow(v, 2) + pow(radius, 2))
+http://rainsilence.iteye.com/blog/1347754
