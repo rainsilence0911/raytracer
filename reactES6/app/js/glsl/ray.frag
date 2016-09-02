@@ -152,7 +152,7 @@ void main(void) {
 
     if (uUseFog) {
         // fogFactor = e^-(z * density)
-        // we must change from pos1.z is (-1, 1) to (-1, 0)
+        // we must convert pos1.z from (-1, 1) to (-1, 0)
         // (result - (-1)) / (0 - (-1)) = (pos.z - (-1)) / 1 - (-1) => result = (pos.z - 1) / 2
         float fogFactor = clamp(exp(((pos1.z - 1.0) / 2.0) * uFogDensity), 0.0, 1.0);//clamp((2.0 - pointDistance) / 2.0, 0.0, 1.0);
         gl_FragColor = mix(fogColor, vec4(color, 1.0), fogFactor);
