@@ -20,7 +20,7 @@ uniform vec3 sphere1Center;
 
 
 bool intersectSphere(vec3 center, vec3 lStart, vec3 lDir, out float dist) {
-    
+
     vec3 c = lStart - center;
 
     float b = dot(c, lDir);
@@ -51,7 +51,7 @@ bool intersectSphere(vec3 center, vec3 lStart, vec3 lDir, out float dist) {
 }
 
 bool intersectPlane(vec3 lStart, vec3 lDir, out float dist) {
-    
+
     vec3 normal = normalize(vec3(0.0, 1.0, 0.0));
 
     float a = dot(lDir, normal);
@@ -69,7 +69,7 @@ bool intersectPlane(vec3 lStart, vec3 lDir, out float dist) {
 }
 
 bool intersectWorld(vec3 lStart, vec3 lDir, out vec3 pos, out vec3 normal, out vec3 color, out float distance, out bool isFloor) {
-    
+
     //float distance;
 
     if (intersectSphere(sphere1Center, lStart, lDir, distance)) {
@@ -91,7 +91,7 @@ bool intersectWorld(vec3 lStart, vec3 lDir, out vec3 pos, out vec3 normal, out v
         float specularLightWeighting = pow(max(dot(reflectionDirection, eyeDirection), 0.0), 32.0);
         color = ambientColor + diffuseWighting * diffuseColor + specularLightWeighting * specularColor;
         isFloor = false;
-        
+
         return true;
     } else if (intersectPlane(lStart, lDir, distance)) {
 
@@ -101,9 +101,9 @@ bool intersectWorld(vec3 lStart, vec3 lDir, out vec3 pos, out vec3 normal, out v
         color = mod(abs(floor(pos.x * scale) + floor(pos.z * scale)), 2.0) < 1.0 ? COLOR_BLACK : COLOR_WHITE;
         // 地板反射,改变法线向量
         normal = vec3(0.0, 1.0, 0.0);
-        
+
         isFloor = true;
-        
+
         return true;
     } else {
         // 雾模式下，天空会出现溢出，所以在这里将pos.z设置为-1，这样既不会太白，也不会太黑
@@ -121,30 +121,28 @@ void main(void) {
     vec3 colorM, colorR;
     bool isFloor;
     if (intersectWorld(cameraPos, cameraDir, pos1, normal, color, pointDistance, isFloor)) {
-        
+
         if (!isFloor || uReflectFloor) {
-        
+
             vec3 cameraDir2 = reflect(cameraDir, normal);
-            
+
             if (intersectWorld(pos1, cameraDir2, pos2, normal, colorM, distance, isFloor)) {
-            
+
                 // only reflect light that distance <= 1.5.
                 if (distance <= 1.5) {
-                
+
                     // 如果是从白色地板反射到球上的，那么使用加法不足以计算颜色。因为超过1.0的还是白色。所以只能用乘法。
                     // f(x) = x / (1 + x)是增函数，x越大，y越大.y越大，则颜色越浅
                     color *= ((colorM + vec3(0.7)) / 1.7);
 
                     vec3 cameraDir3 = reflect(cameraDir2, normal);
-                    
+
                     // 计算地板反射到球上，并由球反射到地板的光线
-                    if (intersectWorld(pos2, cameraDir3, pos3, normal, colorR, distance, isFloor)) {
-                        color += (colorR) * 0.3;
+                    if (!isFloor && intersectWorld(pos2, cameraDir3, pos3, normal, colorR, distance, isFloor)) {
+                        color = colorR * 0.05 + colorM * 0.4 + color * 0.55;
                     }
                 }
-                
             }
-        
         }
     } else {
         color = COLOR_BLACK;
