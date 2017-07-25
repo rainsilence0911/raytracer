@@ -3,7 +3,7 @@
 
 
 ##效果图
-![image](https://github.com/rainsilence0911/raytracer/blob/master/standalone/image/snipshot.png)
+![image](https://github.com/rainsilence0911/raytracer/blob/master/standalone/image/snipshot0725.png)
 
 ## 功能
 三维视角上下旋转
