@@ -145,8 +145,8 @@
 						vec3 cameraDir3 = reflect(cameraDir2, normal);
 						
 						// 计算地板反射到球上，并由球反射到地板的光线
-						if (intersectWorld(pos2, cameraDir3, pos3, normal, colorR, distance, isFloor)) {
-							color += (colorR) * 0.3;
+						if (!isFloor && intersectWorld(pos2, cameraDir3, pos3, normal, colorR, distance, isFloor)) {
+							color = colorR * 0.05 + colorM * 0.4 + color * 0.55;
 						}
 					}
 					
