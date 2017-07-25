@@ -32,6 +32,8 @@ framework层:util,manager,event文件夹下，包与包之间互相独立，不�
 
 应用层: component,observer文件夹下，两个package之间依然互相独立，不存在互相依赖，但是会依赖bootstrap的代码
 
+## What is vue2ES6 version
+用vue2进行了重构，结构类似react版本
 
 ## How to install
 Standalone版本直接双击test.html就可以运行
