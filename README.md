@@ -2,7 +2,7 @@
 本项目的目的是用react es6 webpack实现光线反射和雾化效果的算法。
 
 
-##效果图
+## 效果图
 ![image](https://github.com/rainsilence0911/raytracer/blob/master/standalone/image/snipshot0725.png)
 
 ## 功能
